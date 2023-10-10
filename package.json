@@ -1,5 +1,7 @@
 {
   "private": true,
+  "name": "fedimint-ui",
+  "version": "0.0.0",
   "scripts": {
     "dev": "turbo run dev",
     "dev:gateway-ui": "turbo run dev --parallel --filter=gateway-ui...",

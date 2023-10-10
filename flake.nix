@@ -14,6 +14,24 @@
           inherit system;
         };
         fmLib = fedimint.lib.${system};
+
+        guardian-ui = pkgs.mkYarnPackage rec {
+          src = ./.;
+          packageJSON = ./package.json;
+          yarnLock = ./yarn.lock;
+
+          configurePhase = ''
+            cp -r $node_modules node_modules
+            chmod +w node_modules
+          '';
+          buildPhase = ''
+            set -xeuo pipefail
+            export HOME=$(mktemp -d)
+            cp -r $node_modules node_modules
+            yarn --offline run build:guardian-ui
+          '';
+          distPhase = "true";
+        };
       in
       {
         devShells = fmLib.devShells // {
@@ -27,6 +45,13 @@
               fedimint.packages.${system}.fedimint-pkgs
             ] ++ prev.nativeBuildInputs;
           });
+          ui = fmLib.devShells.default.overrideAttrs (prev: {
+             nativeBuildInputs = [
+               pkgs.nodejs
+               pkgs.yarn
+             ] ++ prev.nativeBuildInputs;
+           });
         };
+        packages.guardian = guardian-ui;
       });
 }
