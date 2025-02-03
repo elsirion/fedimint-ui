@@ -1,0 +1,88 @@
+name: Manage PR Comments
+
+on:
+  pull_request:
+
+jobs:
+  update-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Find or create comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const description = 'Your Description: '; // customize this
+            const commitText = process.env.COMMIT_TEXT; // from your commit
+            const commitHash = context.sha.substring(0, 7);
+            
+            // Format for the new comment line
+            const newCommentLine = `${description}${commitText} (${commitHash})`;
+            
+            // Get existing comments
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            // Find our managed comment
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.startsWith(description)
+            );
+            
+            if (!botComment) {
+              // Create new comment if none exists
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: newCommentLine
+              });
+            } else {
+              // Parse existing comment to extract history
+              const lines = botComment.body.split('\n');
+              const currentLine = lines[0].slice(description.length);
+              let history = [];
+            
+              // If there's a history section, extract it
+              const historyStartIndex = lines.findIndex(line => 
+                line.includes('<details><summary>History</summary>')
+              );
+            
+              if (historyStartIndex !== -1) {
+                // Extract existing history entries
+                const historyEndIndex = lines.findIndex(line => 
+                  line.includes('</details>')
+                );
+                history = lines.slice(historyStartIndex + 4, historyEndIndex);
+              }
+            
+              // Add current line to history if it exists
+              if (currentLine) {
+                history.unshift(`| ${currentLine} |`);
+              }
+            
+              // Format new comment with history
+              let newComment = newCommentLine + '\n\n';
+              if (history.length > 0) {
+                newComment += '<details><summary>History</summary>\n\n';
+                newComment += '| Previous Updates |\n';
+                newComment += '|-------------------|\n';
+                history.forEach(line => {
+                  newComment += `${line}\n`;
+                });
+                newComment += '</details>';
+              }
+            
+              // Update the comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: newComment
+              });
+            }
